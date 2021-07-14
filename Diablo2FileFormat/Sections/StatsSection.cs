@@ -13,10 +13,13 @@ namespace Diablo2FileFormat.Sections
         public bool IsChanged { get; set; }
         public int Size => Data.Length;
 
+        private FileVersion version;
+
         protected readonly Dictionary<CharacterStatistic, uint> m_stats = new Dictionary<CharacterStatistic, uint>();
 
-        public StatsSection(byte[] data, int offset)
+        public StatsSection(byte[] data, int offset, FileVersion version)
         {
+            this.version = version;
             int skillsTagOffset = offset;
             while (skillsTagOffset < data.Length && (data[skillsTagOffset] != 0x69 || data[skillsTagOffset + 1] != 0x66))
             {
@@ -47,7 +50,7 @@ namespace Diablo2FileFormat.Sections
 
                 if (stat != CharacterStatistic.EndOfAttributes)
                 {
-                    var val = BitOperations.ReadBits(Data, ref i, ref bitOffset, StatisticsHelper.GetBitsPerStat(stat));
+                    var val = BitOperations.ReadBits(Data, ref i, ref bitOffset, StatisticsHelper.GetBitsPerStat(stat, version));
 
                     m_stats[stat] = val;
                 }
@@ -81,7 +84,7 @@ namespace Diablo2FileFormat.Sections
                 else if (m_stats.TryGetValue(stat, out value) && value != 0)
                 {
                     BitOperations.WriteBits(newData, (uint)stat, ref offset, ref bitOffset, 9);
-                    BitOperations.WriteBits(newData, value, ref offset, ref bitOffset, StatisticsHelper.GetBitsPerStat(stat));
+                    BitOperations.WriteBits(newData, value, ref offset, ref bitOffset, StatisticsHelper.GetBitsPerStat(stat, version));
                 }
             }
 

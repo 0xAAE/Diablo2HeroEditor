@@ -44,7 +44,7 @@ namespace Diablo2FileFormat.Sections
 
         public int Size => MercenaryMinimumLength + (m_items?.Size ?? 0);
 
-        public MercenaryItemSection(byte[] data, int offset)
+        public MercenaryItemSection(byte[] data, int offset, FileVersion version)
         {
             if (data.Length - offset < MercenaryMinimumLength)
                 throw new Exception("Invalid mercenary data");
@@ -52,7 +52,7 @@ namespace Diablo2FileFormat.Sections
             if (data[offset + 2] != HeaderMarkerk || data[offset + 3] != HeaderMarkerf)
             {
                 // mercenary has items equipped
-                m_items = new ItemListSection(data, offset + 2);
+                m_items = new ItemListSection(data, offset + 2, version);
             }
         }
     }

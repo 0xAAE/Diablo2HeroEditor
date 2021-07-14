@@ -44,23 +44,36 @@ namespace Diablo2FileFormat.Sections
 
         private readonly List<Diablo2Item> m_items = new List<Diablo2Item>();
 
-        public ItemListSection(byte[] data, int offset)
+        public ItemListSection(byte[] data, int offset, FileVersion version)
         {
             if (data.Length - offset < ItemListHeaderSize)
                 throw new Exception("Invalid item list");
 
             int nbItem = BitConverter.ToUInt16(data, offset + 2);
 
-            int itemStartOffset = offset + ItemListHeaderSize;
-            offset += ItemListHeaderSize + 2; // skip the header and the first item JM marker
+            offset += ItemListHeaderSize;
+            int itemStartOffset = offset;
+            if(version != FileVersion.V114R)
+            {
+                offset += 2; // skip the header and the first item JM marker
+            }
             while (offset < data.Length - 1 && m_items.Count < nbItem)
             {
-                if (data[offset] == HeaderMarkerJ && data[offset + 1] == HeaderMarkerM)
+                if (version != FileVersion.V114R)
                 {
-                    m_items.Add(new Diablo2Item(data, itemStartOffset, offset - itemStartOffset));
-                    itemStartOffset = offset;
+                    if (data[offset] == HeaderMarkerJ && data[offset + 1] == HeaderMarkerM)
+                    {
+                        m_items.Add(new Diablo2Item(data, itemStartOffset, offset - itemStartOffset));
+                        itemStartOffset = offset;
+                    }
+                    ++offset;
                 }
-                ++offset;
+                else
+                {
+                    int len = BitConverter.ToUInt16(data, offset);
+                    m_items.Add(new Diablo2Item(data, offset, len + 2));
+                    offset += len + 2;
+                }
             }
 
             //int size = data.Length - offset;
