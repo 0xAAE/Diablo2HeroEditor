@@ -9,6 +9,7 @@ namespace Diablo2FileFormat
         V108 = 0x59,
         V109 = 0x5C,
         V110 = 0x60,
+        V114R = 0x61
     }
 
     [Flags]

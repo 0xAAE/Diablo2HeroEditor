@@ -91,7 +91,7 @@ namespace Diablo2FileFormat
                 m_sections.Add(m_npcSection);
                 offset += m_npcSection.Size;
 
-                m_statsSection = new StatsSection(m_fileData, offset);
+                m_statsSection = new StatsSection(m_fileData, offset, m_headerSection.FileVersion);
                 m_sections.Add(m_statsSection);
                 offset += m_statsSection.Size;
 
@@ -99,15 +99,15 @@ namespace Diablo2FileFormat
                 m_sections.Add(m_skillSection);
                 offset += m_skillSection.Size;
 
-                m_itemSection = new ItemListSection(m_fileData, offset);
+                m_itemSection = new ItemListSection(m_fileData, offset, m_headerSection.FileVersion);
                 m_sections.Add(m_itemSection);
                 offset += m_itemSection.Size;
 
-                m_corpseSection = new ItemListSection(m_fileData, offset);
+                m_corpseSection = new ItemListSection(m_fileData, offset, m_headerSection.FileVersion);
                 m_sections.Add(m_corpseSection);
                 offset += m_corpseSection.Size;
 
-                m_mercenarySection = new MercenaryItemSection(m_fileData, offset);
+                m_mercenarySection = new MercenaryItemSection(m_fileData, offset, m_headerSection.FileVersion);
                 m_sections.Add(m_mercenarySection);
                 offset += m_mercenarySection.Size;
 
@@ -157,7 +157,7 @@ namespace Diablo2FileFormat
                 return FileValidity.WrongSize;
 
             // Support only file version 1.10+
-            if (m_headerSection.FileVersion != FileVersion.V110)
+            if (m_headerSection.FileVersion != FileVersion.V110 && m_headerSection.FileVersion != FileVersion.V114R)
                 return FileValidity.WrongVersion;
 
             return FileValidity.Valid;
