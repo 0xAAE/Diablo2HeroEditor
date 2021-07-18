@@ -45,6 +45,7 @@
     <Compile Include="CharacterStatistic.cs" />
     <Compile Include="BitOperations.cs" />
     <Compile Include="Checksum.cs" />
+    <Compile Include="Huffman.cs" />
     <Compile Include="ItemTypeWiki.cs" />
     <Compile Include="Diablo2Item.cs" />
     <Compile Include="Enumerations.cs" />
