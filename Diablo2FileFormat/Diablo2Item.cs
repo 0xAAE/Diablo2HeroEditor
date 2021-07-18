@@ -19,13 +19,37 @@ namespace Diablo2FileFormat
         public bool IsChanged { get; set; }
         public int Size => Data.Length;
 
-        public Diablo2Item()
-        {
-            Data = new byte[14];
-            m_bitData = new BitField(Data);
-            Data[0] = HeaderMarkerJ;
-            Data[1] = HeaderMarkerM;
+        /// <summary>
+        ///  Minimal data length, version 110:
+        ///  ear bits: 76 + 10 + 2 * 7 bits (1-letter owner name) = 100 bits
+        ///  simple item: 111 bits
+        ///  other items: 111+ bits
+        /// </summary>
+        private int MinDataLength_V110 => 14; // 111 bits is minimal for non-ear
 
+        ///  Minimal data length, version 114R:
+        ///  (-16 bits, there is no "JM" header)
+        ///  ear bits: 60 + 10 + 2 * 7 bits (1-letter owner name) = 84 bits
+        ///  simple item: 95 bits
+        ///  other items: 95+ bits
+        /// </summary>
+        private int MinDataLength_V114R => 12; // 95 bits is minimal for non-ear
+
+        public Diablo2Item(FileVersion version)
+        {
+            if(version == FileVersion.V110)
+            {
+                Data = new byte[MinDataLength_V110];
+                m_bitData = new BitField(Data);
+                Data[0] = HeaderMarkerJ;
+                Data[1] = HeaderMarkerM;
+            }
+            else
+            {
+                Data = new byte[MinDataLength_V114R];
+                m_bitData = new BitField(Data);
+            }
+            m_bitData = new BitField(Data);
             IsIdentified = true;
         }
 
@@ -42,6 +66,7 @@ namespace Diablo2FileFormat
                 Data = new byte[0];
             }
             m_bitData = new BitField(Data);
+            parse_v110();
         }
 
         // Ver114R
@@ -79,17 +104,23 @@ namespace Diablo2FileFormat
         public uint PositionX => m_bitData.Read(65, 4);
         public uint PositionY => m_bitData.Read(69, 4);
 
-        public string ItemType
+        public string ItemTypeStr => Encoding.ASCII.GetString(m_ItemType).Trim(' ');
+
+        public ItemType ItemType
         {
             get
             {
-                byte[] str = new byte[4];
-                str[0] = (byte)m_bitData.Read(76, 8);
-                str[1] = (byte)m_bitData.Read(84, 8);
-                str[2] = (byte)m_bitData.Read(92, 8);
-                str[3] = (byte)m_bitData.Read(100, 8);
-
-                return Encoding.ASCII.GetString(str);
+                try
+                {
+                    return ItemTypeWiki.ItemTypeString.Single((kv) => kv.Key == ItemTypeStr).Value;
+                }
+                catch (ArgumentNullException)
+                {
+                }
+                catch (InvalidOperationException)
+                {
+                }
+                return ItemType.Unknown;
             }
         }
 
@@ -99,10 +130,32 @@ namespace Diablo2FileFormat
             set { m_bitData.Write((uint)(value ? 1 : 0), 20, 1); }
         }
 
-        ItemTypeId GetItemTypeId(string itemTypeStr)
+        public ItemKind ItemKind
         {
-            // todo:
-            return ItemTypeId.Other;
+            get
+            {
+                var item = ItemType;
+                if (item != ItemType.Unknown)
+                {
+                    if (ItemTypeWiki.ArmorName.ContainsKey(item))
+                    {
+                        return ItemKind.Armor;
+                    }
+                    if (ItemTypeWiki.ShieldName.ContainsKey(item))
+                    {
+                        return ItemKind.Shield;
+                    }
+                    if (ItemTypeWiki.WeaponName.ContainsKey(item))
+                    {
+                        return ItemKind.Weapon;
+                    }
+                    if (ItemTypeWiki.MiscName.ContainsKey(item))
+                    {
+                        return ItemKind.Other;
+                    }
+                }
+                return ItemKind.Unknown;
+            }
         }
 
         ulong Read(BitField data, ref int pos, int count)
@@ -134,6 +187,179 @@ namespace Diablo2FileFormat
         }
 
         // https://squeek502.github.io/d2itemreader/formats/d2.html
+        void parse_v110()
+        {
+            if(m_bitData == null)
+            {
+                return;
+            }
+            int pos = 0;
+            pos += 20; // 'J' + 'M' + ?
+            m_Identified = Read(m_bitData, ref pos, 1) != 0;
+            pos += 6; // ?
+            m_Socketed = Read(m_bitData, ref pos, 1) != 0;
+            pos += 1; // ?
+            m_Unsaved = Read(m_bitData, ref pos, 1) != 0;
+            pos += 2; // ?
+            m_Ear = Read(m_bitData, ref pos, 1) != 0;
+            m_Starter = Read(m_bitData, ref pos, 1) != 0;
+            pos += 3; // ?
+            m_Simple = Read(m_bitData, ref pos, 1) != 0;
+            m_Ethereal = Read(m_bitData, ref pos, 1) != 0;
+            pos += 1;  // ?
+            m_Personalized = Read(m_bitData, ref pos, 1) != 0;
+            pos += 1; // ?
+            m_Runeword = Read(m_bitData, ref pos, 1) != 0;
+            pos += 5; // ?
+            m_Version = (ItemVersion)Read(m_bitData, ref pos, 8);
+            pos += 2; // ?
+            m_Parent = (ItemParent)Read(m_bitData, ref pos, 3);
+            m_Placement = (BodyPlacement)Read(m_bitData, ref pos, 4);
+            m_Column = (int)Read(m_bitData, ref pos, 4);
+            m_Row = (int)Read(m_bitData, ref pos, 3);
+            pos += 1; // ?
+            m_Storage = (ItemLocation)Read(m_bitData, ref pos, 3);
+
+            if (m_Ear)
+            {
+                m_EarClass = (int)Read(m_bitData, ref pos, 3);
+                m_EarLevel = (int)Read(m_bitData, ref pos, 7);
+                byte[] buf = new byte[64];
+                for (int i = 0; i < 64; i++)
+                {
+                    buf[i] = (byte)Read(m_bitData, ref pos, 7);
+                    if (buf[i] == 0)
+                    {
+                        break;
+                    }
+                }
+                m_EarOriginName = new byte[buf.Length];
+                Array.Copy(buf, m_EarOriginName, buf.Length);
+                return;
+            }
+
+            m_ItemType[0] = (byte)Read(m_bitData, ref pos, 8);
+            m_ItemType[1] = (byte)Read(m_bitData, ref pos, 8);
+            m_ItemType[2] = (byte)Read(m_bitData, ref pos, 8);
+            m_ItemType[3] = (byte)Read(m_bitData, ref pos, 8);
+
+            m_SocketsFilled = (int)Read(m_bitData, ref pos, 3);
+
+            if (m_Simple)
+            {
+                return;
+            }
+            System.Diagnostics.Debug.Assert(pos == 111);
+
+            m_Id = (uint) Read(m_bitData, ref pos, 32);
+            m_Level = (int)Read(m_bitData, ref pos, 7);
+            m_Rarity = (ItemRarity)Read(m_bitData, ref pos, 4);
+
+            // nullable data
+            if (Read(m_bitData, ref pos, 1) != 0)
+            {
+                m_IdxPicture = (int)Read(m_bitData, ref pos, 3);
+            }
+            if (Read(m_bitData, ref pos, 1) != 0)
+            {
+                m_IdClassSpecAffix = (int)Read(m_bitData, ref pos, 11);
+            }
+            switch (m_Rarity)
+            {
+                case ItemRarity.LowQuality:
+                    m_IdLowQualityType = (int)Read(m_bitData, ref pos, 3);
+                    break;
+                case ItemRarity.Superior:
+                    m_IdSuperiorType = (int)Read(m_bitData, ref pos, 3);
+                    break;
+                case ItemRarity.Magic:
+                    m_IdMagicPrefix = (int)Read(m_bitData, ref pos, 11);
+                    m_IdMagicSuffix = (int)Read(m_bitData, ref pos, 11);
+                    break;
+                case ItemRarity.Set:
+                    m_IdSetType = (int)Read(m_bitData, ref pos, 12);
+                    break;
+                case ItemRarity.Unique:
+                    m_IdUniqueType = (int)Read(m_bitData, ref pos, 12);
+                    break;
+                case ItemRarity.Rare:
+                case ItemRarity.Crafted:
+                    m_IdRareName1 = (int)Read(m_bitData, ref pos, 8);
+                    m_IdRareName2 = (int)Read(m_bitData, ref pos, 8);
+                    for (int i = 0; i < m_IdRareAffixes.Length; i++)
+                    {
+                        if (Read(m_bitData, ref pos, 1) != 0)
+                        {
+                            m_IdRareAffixes[i] = (int)Read(m_bitData, ref pos, 11);
+                        }
+                    }
+                    break;
+            }
+            if (m_Runeword)
+            {
+                m_IdRunwordName = (int)Read(m_bitData, ref pos, 12);
+                // 4 unknown bits
+                pos += 4;
+            }
+            if (m_Personalized)
+            {
+                List<byte> chars = new List<byte>();
+                while (chars.Count < 100) // abnormally big
+                {
+                    byte c = (byte)Read(m_bitData, ref pos, 7);
+                    if (c == 0)
+                    {
+                        m_OwnerName = new byte[chars.Count + 1];
+                        for (int i = 0; i < chars.Count; i++)
+                        {
+                            m_OwnerName[i] = chars.ElementAt(i);
+                        }
+                        m_OwnerName[chars.Count] = 0;
+                        break;
+                    }
+                    chars.Add(c);
+                }
+            }
+            //if(*is a tom*)
+            //{
+            //    pos += 5;
+            //}
+            pos += 1;
+            //if(*is an armor*)
+            //{
+            //    pos += 11;
+            //}
+            //if(*is an armor or is a weapon*)
+            //{
+            //    pos += 8;
+            //}
+            //if(*max durability > 0*)
+            //{
+            //    pos += 9;
+            //}
+            //if(*is a stackable weapon*)
+            //{
+            //    pos += 9;
+            //}
+            if (m_Socketed)
+            {
+                m_SocketsTotal = (int)Read(m_bitData, ref pos, 4);
+            }
+            if (m_Rarity == ItemRarity.Set)
+            {
+                m_SetPropertiesBits = (int)Read(m_bitData, ref pos, 5);
+            }
+            // List of magical properties of the item. See Property Lists (https://squeek502.github.io/d2itemreader/formats/d2.html#property-lists)
+            if (m_SetPropertiesBits.HasValue && m_SetPropertiesBits.Value != 0)
+            {
+                // m_SetPropertiesBits.Value & (1 << index) != 0 ==> read set property
+            }
+            if (m_Runeword)
+            {
+                // A property list containing the properties of the item that come from the runeword
+            }
+        }
+
         BytesCounter parse(byte[] data, int offset)
         {
             var bitData = new BitField(data);
@@ -157,12 +383,12 @@ namespace Diablo2FileFormat
             pos += 5; // ?
             m_Version = (ItemVersion)Read(bitData, ref pos, 8);
             pos += 2; // ?
-            m_Parent = (Parent) Read(bitData, ref pos, 3);
-            m_Placement = (Placement) Read(bitData, ref pos, 4);
+            m_Parent = (ItemParent) Read(bitData, ref pos, 3);
+            m_Placement = (BodyPlacement) Read(bitData, ref pos, 4);
             m_Column = (int) Read(bitData, ref pos, 4);
             m_Row = (int) Read(bitData, ref pos, 3);
             pos += 1; // ?
-            m_Storage = (Storage)Read(bitData, ref pos, 3);
+            m_Storage = (ItemLocation)Read(bitData, ref pos, 3);
 
             if(m_Ear)
             {
@@ -186,7 +412,6 @@ namespace Diablo2FileFormat
             m_ItemType[1] = (byte)Read(bitData, ref pos, 8);
             m_ItemType[2] = (byte)Read(bitData, ref pos, 8);
             m_ItemType[3] = (byte)Read(bitData, ref pos, 8);
-            m_ItemTypeId = GetItemTypeId(Encoding.ASCII.GetString(m_ItemType).Trim(' '));
 
             m_SocketsFilled = (int) Read(bitData, ref pos, 3);
 
@@ -197,7 +422,7 @@ namespace Diablo2FileFormat
 
             m_Id = bitData.Read(111, 32);
             m_Level = (int) bitData.Read(143, 7);
-            m_Rarity = (Rarity) bitData.Read(150, 4);
+            m_Rarity = (ItemRarity) bitData.Read(150, 4);
 
             // nullable data
             pos = 154;
@@ -215,30 +440,30 @@ namespace Diablo2FileFormat
             pos++;
             switch(m_Rarity)
             {
-                case Rarity.LowQuality:
+                case ItemRarity.LowQuality:
                     m_IdLowQualityType = (int)bitData.Read(pos, 3);
                     pos += 3;
                     break;
-                case Rarity.Superior:
+                case ItemRarity.Superior:
                     m_IdSuperiorType = (int)bitData.Read(pos, 3);
                     pos += 3;
                     break;
-                case Rarity.Magic:
+                case ItemRarity.Magic:
                     m_IdMagicPrefix = (int)bitData.Read(pos, 11);
                     pos += 11;
                     m_IdMagicSuffix = (int)bitData.Read(pos, 11);
                     pos += 11;
                     break;
-                case Rarity.Set:
+                case ItemRarity.Set:
                     m_IdSetType = (int)bitData.Read(pos, 12);
                     pos += 12;
                     break;
-                case Rarity.Unique:
+                case ItemRarity.Unique:
                     m_IdUniqueType = (int)bitData.Read(pos, 12);
                     pos += 12;
                     break;
-                case Rarity.Rare:
-                case Rarity.Crafted:
+                case ItemRarity.Rare:
+                case ItemRarity.Crafted:
                     m_IdRareName1 = (int)bitData.Read(pos, 8);
                     pos += 8;
                     m_IdRareName2 = (int)bitData.Read(pos, 8);
@@ -307,7 +532,7 @@ namespace Diablo2FileFormat
                 m_SocketsTotal = (int)bitData.Read(pos, 4);
                 pos += 4;
             }
-            if(m_Rarity == Rarity.Set)
+            if(m_Rarity == ItemRarity.Set)
             {
                 m_SetPropertiesBits = (int) bitData.Read(pos, 5);
                 pos += 5;
@@ -334,9 +559,9 @@ namespace Diablo2FileFormat
         bool m_Personalized = false;
         bool m_Runeword = false;
         ItemVersion m_Version = ItemVersion.NotSet;
-        Parent m_Parent = Parent.NotSet;
-        Storage m_Storage = Storage.NotSet;
-        Placement m_Placement = Placement.NotSet;
+        ItemParent m_Parent = ItemParent.NotSet;
+        ItemLocation m_Storage = ItemLocation.NotSet;
+        BodyPlacement m_Placement = BodyPlacement.NotSet;
         int m_Column = -1;
         int m_Row = -1;
         //byte [] m_TypeCode = new byte[3];
@@ -346,13 +571,12 @@ namespace Diablo2FileFormat
         byte[] m_EarOriginName;
         //
         byte[] m_ItemType = new byte[4];
-        ItemTypeId? m_ItemTypeId;
 
         int? m_SocketsFilled;
         int? m_SocketsTotal;
         uint m_Id = 0xFFFF;
         int m_Level = -1;
-        Rarity m_Rarity = Rarity.Invalid;
+        ItemRarity m_Rarity = ItemRarity.Invalid;
         int? m_IdxPicture;
         int? m_IdClassSpecAffix;
         int? m_IdLowQualityType;
@@ -368,71 +592,5 @@ namespace Diablo2FileFormat
         byte[] m_OwnerName;
         int? m_SetPropertiesBits;
 
-        enum Parent
-        {
-            Stored = 0,
-            Equipped = 1,
-            Belt = 2,
-            Ground = 3,
-            Cursor = 4,
-            Item = 6,
-            NotSet = 0xFF
-        }
-
-        enum Storage
-        {
-            Inventory = 1,
-            Cube = 4,
-            Stash = 5,
-            NotSet = 0xFF
-        }
-
-        enum Placement
-        {
-            Helmet = 1,
-            Amulet = 2,
-            Armor = 3,
-            WeaponRight = 4,
-            WeaponLeft = 5,
-            RingRight = 6,
-            RingLeft = 7,
-            Belt = 8,
-            Boots = 9,
-            Gloves = 10,
-            AltWeaponRight = 11,
-            AltWeaponLeft = 12,
-            NotSet = 0xFF
-        }
-
-        enum ItemVersion
-        {
-            Pre108 = 0,
-            Classic = 1,
-            Expansion = 100,
-            Expansion110 = 101,
-            NotSet = 0xFFFF
-        }
-
-        enum ItemTypeId
-        {
-            Armor,
-            Shield,
-            Weapon,
-            Other
-        }
-
-        enum Rarity
-        {
-            Invalid = 0,
-            LowQuality,
-            Normal,
-            Superior,
-            Magic,
-            Set,
-            Rare,
-            Unique,
-            Crafted,
-            Tempered
-        }
     }
 }
