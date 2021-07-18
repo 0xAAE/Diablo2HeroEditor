@@ -40,6 +40,18 @@ namespace Diablo2FileFormat
             return val;
         }
 
+        public static ulong ReverseBits(ulong bits, int count)
+        {
+            ulong d = 0;
+            for(int i = 0; i < count; i++)
+            {
+                d <<= 1;
+                d |= (bits & 1);
+                bits >>= 1;
+            }
+            return d;
+        }
+
         public static void WriteBits(byte[] data, uint value, ref int offset, ref int bitOffset, int bitLength)
         {
             int bitsRemainingInCurrentByte = 8 - bitOffset;

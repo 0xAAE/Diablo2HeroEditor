@@ -35,7 +35,7 @@ namespace Diablo2FileFormat
             switch (version)
             {
                 case FileVersion.V110:
-                    return GetBitsPerStatV110(attribute);
+                    return GetBitsPerStatV114R(attribute);
                 case FileVersion.V114R:
                     return GetBitsPerStatV114R(attribute);
                 default:

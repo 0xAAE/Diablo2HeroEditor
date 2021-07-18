@@ -52,14 +52,11 @@ namespace Diablo2FileFormat.Sections
             int nbItem = BitConverter.ToUInt16(data, offset + 2);
 
             offset += ItemListHeaderSize;
-            int itemStartOffset = offset;
-            if(version != FileVersion.V114R)
+            if (version != FileVersion.V114R)
             {
-                offset += 2; // skip the header and the first item JM marker
-            }
-            while (offset < data.Length - 1 && m_items.Count < nbItem)
-            {
-                if (version != FileVersion.V114R)
+                int itemStartOffset = offset;
+                offset += 2; // skip the first item JM marker
+                while (offset < data.Length - 1 && m_items.Count < nbItem)
                 {
                     if (data[offset] == HeaderMarkerJ && data[offset + 1] == HeaderMarkerM)
                     {
@@ -68,11 +65,14 @@ namespace Diablo2FileFormat.Sections
                     }
                     ++offset;
                 }
-                else
+            }
+            else
+            {
+                while(m_items.Count < nbItem)
                 {
-                    int len = BitConverter.ToUInt16(data, offset);
-                    m_items.Add(new Diablo2Item(data, offset, len + 2));
-                    offset += len + 2;
+                    var tmp = new Diablo2Item(data, offset);
+                    m_items.Add(tmp);
+                    offset += tmp.Size;
                 }
             }
 
