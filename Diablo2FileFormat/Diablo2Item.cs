@@ -390,77 +390,7 @@ namespace Diablo2FileFormat
 			m_ItemType[0] = Huffman.decode(bitData, ref pos);
 			m_ItemType[1] = Huffman.decode(bitData, ref pos);
 			m_ItemType[2] = Huffman.decode(bitData, ref pos);
-			//m_ItemType[3] = Huffman.decode(bitData, ref pos);
-
-			string huff_a = "11110";
-			string huff_b = "0101";
-			string huff_c = "01000";
-			string huff_d = "110001";
-			string huff_e = "110000";
-			string huff_f = "010011";
-			string huff_g = "11010";
-			string huff_h = "00011";
-			string huff_i = "1111110";
-			string huff_j = "000101110";
-			string huff_k = "010010";
-			string huff_l = "11101";
-			string huff_m = "01101";
-			string huff_n = "001101";
-			string huff_o = "1111111";
-			string huff_p = "11001";
-			string huff_q = "11011001";
-			string huff_r = "11100";
-			string huff_s = "0010";
-			string huff_t = "01100";
-			string huff_u = "00001";
-			string huff_v = "1101110";
-			string huff_w = "00000";
-			string huff_x = "00111";
-			string huff_y = "0001010";
-			string huff_z = "11011000";
-			string huff_0 = "11111011";
-			string huff_1 = "1111100";
-			string huff_2 = "001100";
-			string huff_3 = "1101101";
-			string huff_4 = "11111010";
-			string huff_5 = "00010110";
-			string huff_6 = "1101111";
-			string huff_7 = "01111";
-			string huff_8 = "000100";
-			string huff_9 = "01110";
-			string[] letters = {
-				huff_a, huff_b, huff_c, huff_d, huff_e, huff_f, huff_g, huff_h, huff_i, huff_j, huff_k, huff_l, huff_m, huff_n,
-				huff_o, huff_p, huff_q, huff_r, huff_s, huff_t, huff_u, huff_v, huff_w, huff_x, huff_y, huff_z, huff_0, huff_1,
-				huff_2, huff_3, huff_4, huff_5, huff_6, huff_7, huff_8, huff_9
-			};
-			int bits_count = 0;
-			foreach(var l in letters)
-            {
-				bits_count += l.Length;
-            }
-			var bytes_count = new BytesCounter(bits_count);
-			byte[] test_data = new byte[bytes_count.Bytes];
-			BitField test_bit_field = new BitField(test_data);
-			int bitn = 0;
-			foreach(var l in letters)
-            {
-				foreach(var letter in l)
-                {
-					if(letter == '1')
-                    {
-						test_bit_field.Write(1, bitn, 1);
-                    }
-					bitn++;
-				}
-			}
-			// read data
-			int test_pos = 0;
-			char[] read_letters = new char[letters.Length];
-			for(int i = 0; i < letters.Length; i++)
-            {
-				read_letters[i] = (char)Huffman.decode(test_bit_field, ref test_pos);
-            }
-
+			ulong fin = Read(bitData, ref pos, 2);
 
 			m_SocketsFilled = (int) Read( bitData, ref pos, 3 );
 			var t = this.ItemType;
