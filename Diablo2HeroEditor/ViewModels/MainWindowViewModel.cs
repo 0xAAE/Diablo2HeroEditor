@@ -112,6 +112,7 @@ namespace Diablo2HeroEditor.ViewModels
             else
             {
                 Status = "Failed to load character file because it doesn't exist.";
+                OnOpen();
             }
 
             return success;
